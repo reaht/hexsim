@@ -1,0 +1,5 @@
+id,name,base_cost,danger,description
+plains,Plains,1.0,0.2,Open grassland
+forest,Forest,2.5,0.8,Dense woodland
+mountain,Mountain,3.0,1.2,Steep rocky slopes
+swamp,Swamp,3.0,1.0,Waterlogged and slow

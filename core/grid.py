@@ -1,0 +1,143 @@
+# file: core/grid.py
+from dataclasses import dataclass
+from typing import Dict, Tuple, Optional, Any, List
+
+Coord = Tuple[int, int]  # axial (q, r)
+
+
+@dataclass
+class HexTile:
+    biome_id: str
+    elevation: int = 0
+    trails: List[bool] = None      # 6 directions: [N, NE, SE, S, SW, NW]
+    data: Dict[str, Any] = None    # free-form extra data
+
+    def __post_init__(self):
+        if self.trails is None:
+            # 0=N, 1=NE, 2=SE, 3=S, 4=SW, 5=NW
+            self.trails = [False] * 6
+        if self.data is None:
+            self.data = {}
+
+
+class HexGrid:
+    """
+    A dictionary-based axial coordinate hex map.
+    Keys: (q, r)
+    Values: HexTile instances
+    """
+
+    def __init__(self):
+        self.tiles: Dict[Coord, HexTile] = {}
+        self.biome_lib = None  # set externally
+
+    # ---------------------------------------------------------
+    # Tile access
+    # ---------------------------------------------------------
+
+    def has(self, coord: Coord) -> bool:
+        return coord in self.tiles
+
+    def get(self, coord: Coord) -> Optional[HexTile]:
+        return self.tiles.get(coord)
+
+    def set(self, coord: Coord, tile: HexTile):
+        self.tiles[coord] = tile
+
+    def set_biome(self, coord: Coord, biome_id: str):
+        if coord not in self.tiles:
+            self.tiles[coord] = HexTile(biome_id)
+        else:
+            self.tiles[coord].biome_id = biome_id
+
+    # ---------------------------------------------------------
+    # Map generation
+    # ---------------------------------------------------------
+
+    def generate_rectangle(self, width: int, height: int, default_biome="plains"):
+        """
+        Fills a width × height region using axial coordinates:
+        q = 0..width-1
+        r = 0..height-1
+        """
+        for q in range(width):
+            for r in range(height):
+                self.tiles[(q, r)] = HexTile(default_biome)
+
+    # ---------------------------------------------------------
+    # Trail helpers
+    # ---------------------------------------------------------
+
+    @staticmethod
+    def opposite_dir(direction_index: int) -> int:
+        """
+        Opposite directions in our 6-dir scheme:
+        0<->3 (N<->S), 1<->4 (NE<->SW), 2<->5 (SE<->NW)
+        """
+        return (direction_index + 3) % 6
+
+    def set_trail(self, coord: Coord, direction_index: int, value: bool):
+        """
+        Set a trail on this hex in a given direction and mirror it
+        on the neighboring hex in the opposite direction (if it exists).
+        """
+        tile = self.tiles.get(coord)
+        if tile is None:
+            return
+
+        # Set on this tile
+        tile.trails[direction_index] = value
+
+        # Neighbor coordinate (same axial directions used in movement)
+        # NOTE: keep this in sync with AXIAL_DIRECTIONS in movement.py
+        from core.movement import AXIAL_DIRECTIONS, add
+
+        dq, dr = AXIAL_DIRECTIONS[direction_index]
+        neighbor_coord = add(coord, (dq, dr))
+        neighbor = self.tiles.get(neighbor_coord)
+        if neighbor is not None:
+            opp = self.opposite_dir(direction_index)
+            neighbor.trails[opp] = value
+
+    # ---------------------------------------------------------
+    # Save / Load
+    # ---------------------------------------------------------
+
+    def to_dict(self):
+        return {
+            "tiles": [
+                {
+                    "q": q,
+                    "r": r,
+                    "biome": t.biome_id,
+                    "elevation": t.elevation,
+                    "trails": t.trails,
+                    "data": t.data,
+                }
+                for (q, r), t in self.tiles.items()
+            ]
+        }
+
+    @classmethod
+    def from_dict(cls, data):
+        g = cls()
+        for item in data["tiles"]:
+            q, r = item["q"], item["r"]
+            biome = item.get("biome", "plains")
+            elevation = item.get("elevation", 0)
+            trails = item.get("trails", [False] * 6)
+            extra = item.get("data", {})
+            g.tiles[(q, r)] = HexTile(
+                biome_id=biome,
+                elevation=elevation,
+                trails=trails,
+                data=extra,
+            )
+        return g
+
+    # ---------------------------------------------------------
+    # Iteration
+    # ---------------------------------------------------------
+
+    def coords(self):
+        return self.tiles.keys()
