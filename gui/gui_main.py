@@ -10,7 +10,7 @@ from simulation.engine import SimulationEngine
 
 from gui.grid_widget import HexGridWidget
 
-# Tool classes
+# Tools
 from gui.tools.select_tool import SelectTool
 from gui.tools.inspect_tool import InspectTool
 from gui.tools.paint_biome_tool import PaintBiomeTool
@@ -20,10 +20,10 @@ from gui.tools.erase_trail_tool import EraseTrailTool
 
 def run_app():
     root = tk.Tk()
-    root.title("Hexcrawl Simulator (Axial Dictionary Grid)")
+    root.title("Hexcrawl Simulator")
 
     # ---------------------------------------------------------
-    # Load biome library
+    # Load biomes
     # ---------------------------------------------------------
     biome_lib = BiomeLibrary()
     biome_lib.load_from_csv("config/biomes.csv")
@@ -46,7 +46,7 @@ def run_app():
     engine = SimulationEngine(grid, party)
 
     # ---------------------------------------------------------
-    # Layout frames
+    # Layout
     # ---------------------------------------------------------
     main = ttk.Frame(root)
     main.pack(fill="both", expand=True)
@@ -65,13 +65,9 @@ def run_app():
     # ---------------------------------------------------------
     ttk.Label(left, text="Tools", font=("Arial", 11, "bold")).pack(pady=4)
 
-    # biome selection variable must exist *before* constructing PaintBiomeTool
     biome_ids = biome_lib.ids()
     biome_var = tk.StringVar(value=biome_ids[0])
 
-    # ---------------------------------------------------------
-    # Instantiate tools
-    # ---------------------------------------------------------
     tools = {
         "select": SelectTool(),
         "inspect": InspectTool(),
@@ -80,33 +76,33 @@ def run_app():
         "erase_trail": EraseTrailTool(),
     }
 
-    current_tool_name = tk.StringVar(value="select")
+    current_tool = tk.StringVar(value="select")
 
     def set_tool(t):
-        current_tool_name.set(t)
+        current_tool.set(t)
 
-    def make_tool_button(text, tool_id):
-        btn = ttk.Button(left, text=text, width=20, command=lambda: set_tool(tool_id))
-        btn.pack(pady=2)
-        return btn
+    def tool_button(name, tool_id):
+        b = ttk.Button(left, text=name, width=20, command=lambda: set_tool(tool_id))
+        b.pack(pady=2)
+        return b
 
-    make_tool_button("Select", "select")
-    make_tool_button("Paint Biome", "paint_biome")
-    make_tool_button("Paint Trail", "paint_trail")
-    make_tool_button("Erase Trail", "erase_trail")
-    make_tool_button("Inspect", "inspect")
+    tool_button("Select", "select")
+    tool_button("Paint Biome", "paint_biome")
+    tool_button("Paint Trail", "paint_trail")
+    tool_button("Erase Trail", "erase_trail")
+    tool_button("Inspect", "inspect")
 
     # ---------------------------------------------------------
     # Biome selection panel
     # ---------------------------------------------------------
-    ttk.Label(left, text="Biome", font=("Arial", 10, "bold")).pack(pady=5)
+    ttk.Label(left, text="Biome", font=("Arial", 10, "bold")).pack(pady=6)
 
     biome_box = ttk.Combobox(left, textvariable=biome_var,
                              values=biome_ids, state="readonly")
     biome_box.pack(pady=4)
 
     # ---------------------------------------------------------
-    # Grid widget
+    # Grid widget (contains layered renderer)
     # ---------------------------------------------------------
     grid_widget = HexGridWidget(center, grid, cell_size=32, bg="white")
     grid_widget.pack(fill="both", expand=True)
@@ -121,21 +117,21 @@ def run_app():
     grid_widget.set_party_positions([party.position])
 
     # ---------------------------------------------------------
-    # Connect grid widget -> tools
+    # Connect widget → tools
     # ---------------------------------------------------------
 
     def handle_click(coord):
-        tool = tools[current_tool_name.get()]
+        tool = tools[current_tool.get()]
         tool.on_click(coord, grid, grid_widget)
 
     def handle_drag(event):
-        tool = tools[current_tool_name.get()]
+        tool = tools[current_tool.get()]
         coord = grid_widget.pixel_to_hex(event.x, event.y)
         if coord in grid.tiles:
             tool.on_drag(coord, grid, grid_widget)
 
     def handle_release(event):
-        tool = tools[current_tool_name.get()]
+        tool = tools[current_tool.get()]
         tool.on_release(grid, grid_widget)
 
     grid_widget.set_on_hex_clicked(handle_click)
@@ -143,7 +139,7 @@ def run_app():
     grid_widget.bind("<ButtonRelease-1>", handle_release)
 
     # ---------------------------------------------------------
-    # Movement UI
+    # Movement controls
     # ---------------------------------------------------------
     ttk.Label(right, text="Movement").pack(pady=5)
 
@@ -159,7 +155,6 @@ def run_app():
     mvf = ttk.Frame(right)
     mvf.pack(pady=10)
 
-    # Movement hex directions
     buttons = [
         ("N", 0, 0, 1),
         ("NW", 5, 1, 0),
@@ -168,7 +163,6 @@ def run_app():
         ("SE", 2, 2, 2),
         ("S", 3, 3, 1),
     ]
-
     for label, idx, row, col in buttons:
         ttk.Button(mvf, text=label, command=lambda i=idx: do_move(i)).grid(row=row, column=col)
 
@@ -177,10 +171,10 @@ def run_app():
                  values=["cautious", "normal", "fast"], state="readonly").pack(pady=4)
 
     time_label = ttk.Label(right, text="Time Tokens: 0.00")
-    time_label.pack(pady=10)
+    time_label.pack(pady=8)
 
     # ---------------------------------------------------------
-    # File menu
+    # File Menu
     # ---------------------------------------------------------
     menubar = tk.Menu(root)
     root.config(menu=menubar)
@@ -189,8 +183,10 @@ def run_app():
     menubar.add_cascade(label="File", menu=filemenu)
 
     def save_map():
-        path = filedialog.asksaveasfilename(defaultextension=".json",
-                                            filetypes=[("JSON", "*.json")])
+        path = filedialog.asksaveasfilename(
+            defaultextension=".json",
+            filetypes=[("JSON", "*.json")]
+        )
         if not path:
             return
 
@@ -200,7 +196,9 @@ def run_app():
         messagebox.showinfo("Saved", "Map saved.")
 
     def load_map():
-        path = filedialog.askopenfilename(filetypes=[("JSON", "*.json")])
+        path = filedialog.askopenfilename(
+            filetypes=[("JSON", "*.json")]
+        )
         if not path:
             return
 
@@ -212,6 +210,7 @@ def run_app():
 
         engine.grid = new_grid
         grid_widget.grid = new_grid
+        grid_widget._compute_canvas_size()
         grid_widget.redraw()
 
         messagebox.showinfo("Loaded", "Map loaded.")
