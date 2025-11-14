@@ -14,7 +14,6 @@ def run_app():
     root = tk.Tk()
     root.title("Hexcrawl Simulator")
 
-    # Core data
     biome_lib = BiomeLibrary()
     biome_lib.load_from_csv("config/biomes.csv")
 
@@ -25,7 +24,6 @@ def run_app():
     party = load_party_from_csv("config/party.csv", leader_index=0, start_pos=(0, 0))
     engine = SimulationEngine(grid, party)
 
-    # Shared state
     state = AppState(
         grid=grid,
         biome_lib=biome_lib,
@@ -33,7 +31,6 @@ def run_app():
         engine=engine,
     )
 
-    # Build UI
     MainWindow(root, state)
 
     root.mainloop()

@@ -20,40 +20,36 @@ from gui.tools.erase_trail_tool import EraseTrailTool
 
 class MainWindow:
     """
-    Builds the full GUI:
-      - frames layout
-      - toolbar on the left
-      - biome panel
-      - hex grid in the center
-      - movement panel on the right
-      - file menu
-      - wires grid widget -> tools
+    Builds the full GUI, wires EventBus and tools.
     """
 
     def __init__(self, root: tk.Tk, state: AppState):
         self.root = root
         self.state = state
 
-        # Tkinter variable to track which tool is active
         self.current_tool_var = tk.StringVar(value="select")
 
-        # Keep references for cross-wiring
+        self.main = None
+        self.left = None
+        self.center = None
+        self.right = None
+
         self.grid_widget: HexGridWidget | None = None
         self.toolbar: Toolbar | None = None
         self.biome_panel: BiomePanel | None = None
         self.movement_panel: MovementPanel | None = None
         self.file_menu: FileMenu | None = None
 
-        # Build all UI sections
         self._build_layout()
         self._build_left_panel()
         self._build_center_panel()
         self._build_right_panel()
         self._build_menu()
+        self._wire_events()
 
-        # Initial party marker
-        self.grid_widget.set_party_positions([self.state.party.position])
-        self.grid_widget.redraw()
+        # Initial party position and draw
+        self.state.events.publish("party_moved", self.state.party.position)
+        self.state.events.publish("grid_changed")
 
     # ---------------------------------------------------------
     # Layout
@@ -73,17 +69,14 @@ class MainWindow:
         self.right.pack(side="left", fill="y")
 
     # ---------------------------------------------------------
-    # Left panel: tools + biome selection
+    # Left panel
     # ---------------------------------------------------------
 
     def _build_left_panel(self):
-        # Biome IDs from library
         biome_ids = self.state.biome_lib.ids()
 
-        # Biome panel
         self.biome_panel = BiomePanel(self.left, biome_ids)
 
-        # Tools
         tools = {
             "select": SelectTool(),
             "inspect": InspectTool(),
@@ -93,18 +86,16 @@ class MainWindow:
         }
         self.state.tools = tools
 
-        # Toolbar
         self.toolbar = Toolbar(self.left, tools, self.current_tool_var)
 
     # ---------------------------------------------------------
-    # Center panel: grid widget
+    # Center panel (grid)
     # ---------------------------------------------------------
 
     def _build_center_panel(self):
         self.grid_widget = HexGridWidget(self.center, self.state.grid, cell_size=32, bg="white")
         self.grid_widget.pack(fill="both", expand=True)
 
-        # Example biome colors mapping
         biome_colors = {
             "plains": "#b7e590",
             "forest": "#4c9a2a",
@@ -113,24 +104,50 @@ class MainWindow:
         }
         self.grid_widget.set_biome_colors(biome_colors)
 
-        # Wire grid events -> tools
         self.grid_widget.set_on_hex_clicked(self._handle_hex_click)
         self.grid_widget.bind("<B1-Motion>", self._handle_hex_drag)
         self.grid_widget.bind("<ButtonRelease-1>", self._handle_hex_release)
 
     # ---------------------------------------------------------
-    # Right panel: movement controls
+    # Right panel (movement)
     # ---------------------------------------------------------
 
     def _build_right_panel(self):
-        self.movement_panel = MovementPanel(self.right, self.state, self.grid_widget)
+        self.movement_panel = MovementPanel(self.right, self.state)
 
     # ---------------------------------------------------------
-    # Menu bar
+    # Menu
     # ---------------------------------------------------------
 
     def _build_menu(self):
-        self.file_menu = FileMenu(self.root, self.state, self.grid_widget)
+        self.file_menu = FileMenu(self.root, self.state)
+
+    # ---------------------------------------------------------
+    # EventBus wiring
+    # ---------------------------------------------------------
+
+    def _wire_events(self):
+        ev = self.state.events
+
+        ev.subscribe("grid_changed", self._on_grid_changed)
+        ev.subscribe("party_moved", self._on_party_moved)
+        ev.subscribe("map_loaded", self._on_map_loaded)
+
+    def _on_grid_changed(self, *args, **kwargs):
+        if self.grid_widget:
+            self.grid_widget.redraw()
+
+    def _on_party_moved(self, pos):
+        if self.grid_widget:
+            self.grid_widget.set_party_positions([pos])
+
+    def _on_map_loaded(self, *args, **kwargs):
+        if not self.grid_widget:
+            return
+
+        # Re-bind the widget to the new grid
+        self.grid_widget.grid = self.state.grid
+        self.grid_widget._compute_canvas_size()
 
     # ---------------------------------------------------------
     # Tool dispatch
@@ -143,17 +160,17 @@ class MainWindow:
     def _handle_hex_click(self, coord):
         tool = self._get_current_tool()
         if tool:
-            tool.on_click(coord, self.state.grid, self.grid_widget)
+            tool.on_click(coord, self.state)
 
     def _handle_hex_drag(self, event):
         tool = self._get_current_tool()
-        if not tool:
+        if not tool or not self.grid_widget:
             return
         coord = self.grid_widget.pixel_to_hex(event.x, event.y)
         if coord in self.state.grid.tiles:
-            tool.on_drag(coord, self.state.grid, self.grid_widget)
+            tool.on_drag(coord, self.state)
 
     def _handle_hex_release(self, event):
         tool = self._get_current_tool()
         if tool:
-            tool.on_release(self.state.grid, self.grid_widget)
+            tool.on_release(self.state)

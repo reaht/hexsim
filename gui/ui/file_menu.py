@@ -4,7 +4,6 @@ from tkinter import filedialog, messagebox
 import json
 
 from gui.app_state import AppState
-from gui.grid_widget import HexGridWidget
 from core.grid import HexGrid
 
 
@@ -13,10 +12,9 @@ class FileMenu:
     Adds File menu with save/load map actions.
     """
 
-    def __init__(self, root: tk.Tk, state: AppState, grid_widget: HexGridWidget):
+    def __init__(self, root: tk.Tk, state: AppState):
         self.root = root
         self.state = state
-        self.grid_widget = grid_widget
 
         self._build_menu()
 
@@ -56,11 +54,11 @@ class FileMenu:
         new_grid = HexGrid.from_dict(data)
         new_grid.biome_lib = self.state.biome_lib
 
-        # Swap into state + widget + engine
         self.state.grid = new_grid
         self.state.engine.grid = new_grid
-        self.grid_widget.grid = new_grid
-        self.grid_widget._compute_canvas_size()
-        self.grid_widget.redraw()
+
+        # Notify the rest of the system
+        self.state.events.publish("map_loaded")
+        self.state.events.publish("grid_changed")
 
         messagebox.showinfo("Loaded", "Map loaded.")

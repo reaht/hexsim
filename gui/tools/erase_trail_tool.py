@@ -1,21 +1,28 @@
 # file: gui/tools/erase_trail_tool.py
+from typing import Tuple, Optional
+
 from gui.tools.base_tool import BaseTool
+from gui.app_state import AppState
 from core.movement import AXIAL_DIRECTIONS
+
+Coord = Tuple[int, int]
+
 
 class EraseTrailTool(BaseTool):
     name = "erase_trail"
 
     def __init__(self):
-        self.last_coord = None
+        self.last_coord: Optional[Coord] = None
 
-    def on_click(self, coord, grid, widget):
-        """
-        First click marks starting point. No deletion occurs yet,
-        because erasing only happens when crossing into an adjacent hex.
-        """
+    def on_click(self, coord: Coord, state: AppState):
+        if coord not in state.grid.tiles:
+            return
         self.last_coord = coord
 
-    def on_drag(self, coord, grid, widget):
+    def on_drag(self, coord: Coord, state: AppState):
+        if coord not in state.grid.tiles:
+            return
+
         if self.last_coord is None:
             self.last_coord = coord
             return
@@ -26,7 +33,6 @@ class EraseTrailTool(BaseTool):
         dq = coord[0] - self.last_coord[0]
         dr = coord[1] - self.last_coord[1]
 
-        # Find direction from last_coord -> coord
         dir_idx = None
         for i, (adq, adr) in enumerate(AXIAL_DIRECTIONS):
             if (adq, adr) == (dq, dr):
@@ -34,20 +40,20 @@ class EraseTrailTool(BaseTool):
                 break
 
         if dir_idx is None:
-            # Dragged to a non-adjacent hex → reset stroke
+            # non-adjacent; reset stroke
             self.last_coord = coord
             return
 
-        # Remove trail on the starting hex
-        grid.set_trail(self.last_coord, dir_idx, False)
+        # Remove trail from starting hex to neighbour
+        state.grid.set_trail(self.last_coord, dir_idx, False)
 
-        # Remove mirrored trail on the neighbour, if it exists
+        # Remove mirrored trail on neighbour if tile exists
         rev_idx = (dir_idx + 3) % 6
-        if coord in grid.tiles:
-            grid.set_trail(coord, rev_idx, False)
+        if coord in state.grid.tiles:
+            state.grid.set_trail(coord, rev_idx, False)
 
         self.last_coord = coord
-        widget.redraw()
+        state.events.publish("grid_changed")
 
-    def on_release(self, grid, widget):
+    def on_release(self, state: AppState):
         self.last_coord = None
