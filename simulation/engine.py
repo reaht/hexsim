@@ -1,5 +1,6 @@
 # file: simulation/engine.py
 from dataclasses import dataclass
+import random
 
 from core.grid import HexGrid
 from core.party import Party
@@ -20,7 +21,12 @@ class SimulationEngine:
     """
     Computes travel cost and applies token + exhaustion penalties.
     Performs NO GUI changes. Party movement is done via MovePartyCommand.
+
+    New responsibilities:
+      - Include trail_mod (from trail types) in cost
+      - Provide a stealth-check helper for cautious travel
     """
+
     def __init__(self, grid: HexGrid, party: Party, travel_modes):
         self.grid = grid
         self.party = party
@@ -30,7 +36,7 @@ class SimulationEngine:
     # ---------------------------------------------------------
     # Trail modifier helper
     # ---------------------------------------------------------
-    def _get_trail_mod(self, src, direction_index):
+    def _get_trail_mod(self, src, direction_index: int) -> float:
         tile = self.grid.get(src)
         if not tile:
             return 0.0
@@ -39,7 +45,7 @@ class SimulationEngine:
         if not trail_id or trail_id == "none":
             return 0.0
 
-        if not self.grid.trail_lib:
+        if not getattr(self.grid, "trail_lib", None):
             return 0.0
 
         try:
@@ -51,13 +57,13 @@ class SimulationEngine:
     # ---------------------------------------------------------
     # Core movement cost calculation
     # ---------------------------------------------------------
-    def calculate_move_cost(self, src, dst, mode_id, direction_index):
+    def calculate_move_cost(self, src, dst, mode_id: str, direction_index: int) -> int:
         mode = self.travel_modes.get(mode_id)
 
         # biome difficulty
         tile = self.grid.get(dst)
         biome = self.grid.biome_lib.get(tile.biome_id)
-        env = biome.move_difficulty if hasattr(biome, "move_difficulty") else 0
+        env = getattr(biome, "move_difficulty", 0.0)
 
         # trail modifier
         trail_mod = self._get_trail_mod(src, direction_index)
@@ -84,6 +90,12 @@ class SimulationEngine:
     # Movement attempt
     # ---------------------------------------------------------
     def move_dir(self, direction_index: int, mode_id: str):
+        """
+        Computes destination + cost. Does not mutate party/grid.
+
+        Returns:
+            (dst_coord, cost) or None if illegal.
+        """
         src = self.party.position
         dq, dr = AXIAL_DIRECTIONS[direction_index]
         dst = add(src, (dq, dr))
@@ -100,9 +112,42 @@ class SimulationEngine:
     def apply_movement_cost(self, cost: float):
         """
         Apply cost to the entire party and advance world time.
+        If a member lacks tokens, overflow becomes exhaustion (handled by Party).
         """
         self.party.apply_movement_cost(cost)
         self.scheduler.advance(cost)
+
+    # ---------------------------------------------------------
+    # Stealth check helper (for cautious / stealthy travel)
+    # ---------------------------------------------------------
+    def perform_stealth_check(self, biome, mode_id: str):
+        """
+        Simple stealth check: 1d20 vs (biome.stealth_dc + mode.stealth_dc_mod).
+
+        Returns:
+            (success: bool, roll: int, dc: int)
+        """
+        mode = self.travel_modes.get(mode_id)
+
+        base_dc = getattr(biome, "stealth_dc", 12.0)
+        dc = base_dc + getattr(mode, "stealth_dc_mod", 0.0)
+        dc_int = int(round(dc))
+
+        roll = random.randint(1, 20)
+
+        success = roll >= dc_int
+
+        print("==== STEALTH CHECK DEBUG ====")
+        print(f"Mode: {mode_id}")
+        print(f"Biome: {biome.id}")
+        print(f"  Base DC:          {base_dc}")
+        print(f"  Mode dc_mod:      {getattr(mode, 'stealth_dc_mod', 0.0)}")
+        print(f"  → Final DC:       {dc_int}")
+        print(f"  Roll:             {roll}")
+        print(f"  Result:           {'SUCCESS' if success else 'FAILURE'}")
+        print("-----------------------------")
+
+        return success, roll, dc_int
 
     # convenience
     def get_time(self):

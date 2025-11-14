@@ -2,7 +2,7 @@
 import tkinter as tk
 from tkinter import ttk
 
-from core.command import MovePartyCommand
+from core.command import MovePartyCommand, SetTrailCommand
 from core.movement import AXIAL_DIRECTIONS, add
 
 
@@ -13,13 +13,15 @@ class MovementPanel:
       - token/exhaustion tracking
       - undoable party movement (MovePartyCommand)
       - engine cost resolution
+      - trailblazing (travel mode defines trail_type)
+      - stealth check event for cautious travel
     """
 
     def __init__(self, parent, state):
         self.parent = parent
         self.state = state
 
-        # Travel mode variable from AppState
+        # Travel mode variable from AppState (set in gui_main)
         self.mode_var = state.travel_mode_var
 
         self.time_label = None
@@ -68,7 +70,7 @@ class MovementPanel:
         )
         mode_box.pack(pady=4)
 
-        # Time token display
+        # Time token / days display
         self.time_label = ttk.Label(self.parent, text="Time: 0.00 days")
         self.time_label.pack(pady=8)
 
@@ -95,6 +97,7 @@ class MovementPanel:
             return   # Cannot move off the map
 
         mode_id = self.mode_var.get()
+        mode = state.travel_modes.get(mode_id)
 
         # Engine returns (dst, cost)
         result = engine.move_dir(direction_index, mode_id)
@@ -103,19 +106,44 @@ class MovementPanel:
 
         dst, cost = result
 
-        # Apply cost BEFORE movement (rules: you pay the moment you choose to move)
+        # Apply cost BEFORE movement (rules: cost is paid when deciding to travel)
         engine.apply_movement_cost(cost)
 
-        # Make movement undoable (this ONLY moves the leader/party position)
-        cmd = MovePartyCommand(src, dst)
-
+        # Build undoable transaction: move (+ optional trail placement)
         state.undo.begin()
-        state.undo.add(cmd)
+
+        # Move command
+        move_cmd = MovePartyCommand(src, dst)
+        state.undo.add(move_cmd)
+
+        # Trailblazing: if this travel mode defines a trail_type,
+        # lay a trail along the edge we just traversed.
+        if mode.trail_type:
+            tile = grid.get(src)
+            old_trail = tile.trails[direction_index] if tile else "none"
+            trail_cmd = SetTrailCommand(
+                coord=src,
+                direction=direction_index,
+                old_value=old_trail,
+                new_value=mode.trail_type,
+            )
+            state.undo.add(trail_cmd)
+
+        # Commit transaction (both move + trail become one undo step)
         state.undo.commit(state)
 
         # Notify rest of GUI
         state.events.publish("party_moved", dst)
         state.events.publish("grid_changed")
+
+        # Stealth check event: only when cautious (for now)
+        if mode_id == "cautious":
+            tile = grid.get(dst)
+            biome = grid.biome_lib.get(tile.biome_id)
+            success, roll, dc = engine.perform_stealth_check(biome, mode_id)
+
+            # Fire an event other parts of the GUI can listen to
+            state.events.publish("stealth_check", success, roll, dc, biome.id, mode_id)
 
     # ---------------------------------------------------------
     # UI Updates

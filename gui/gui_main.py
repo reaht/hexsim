@@ -41,7 +41,7 @@ def run_app():
     grid = HexGrid()
     grid.biome_lib = biome_lib
     grid.trail_lib = trail_lib
-    grid.generate_rectangle(15, 15, default_biome="plains")
+    grid.generate_hex_radius(radius=7, default_biome="plains")
 
     # ---------------------------------------------------------
     # Party

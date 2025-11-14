@@ -64,7 +64,22 @@ class HexGrid:
         for q in range(width):
             for r in range(height):
                 self.tiles[(q, r)] = HexTile(default_biome)
-
+    
+    @staticmethod
+    def hex_distance(a, b):
+        aq, ar = a
+        bq, br = b
+        as_ = -aq - ar
+        bs = -bq - br
+        return max(abs(aq - bq), abs(ar - br), abs(as_ - bs))
+    
+    def generate_hex_radius(self, radius: int, default_biome="plains"):
+        self.tiles.clear()
+        for q in range(-radius, radius + 1):
+            for r in range(-radius, radius + 1):
+                if self.hex_distance((0,0), (q,r)) <= radius:
+                    self.tiles[(q,r)] = HexTile(default_biome)
+    
     # ---------------------------------------------------------
     # Trail helpers
     # ---------------------------------------------------------
