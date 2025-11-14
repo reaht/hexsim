@@ -1,4 +1,5 @@
 # file: gui/main_window.py
+
 import tkinter as tk
 from tkinter import ttk
 
@@ -28,8 +29,10 @@ class MainWindow:
         self.root = root
         self.state = state
 
+        # active tool
         self.current_tool_var = tk.StringVar(value="select")
 
+        # panels
         self.main = None
         self.left = None
         self.center = None
@@ -42,15 +45,18 @@ class MainWindow:
         self.file_menu: FileMenu | None = None
         self.edit_menu: EditMenu | None = None
 
+        # Build UI
         self._build_layout()
         self._build_left_panel()
         self._build_center_panel()
         self._build_right_panel()
         self._build_menus()
+
+        # Wire events & shortcuts
         self._wire_events()
         self._bind_shortcuts()
 
-        # Initial draw
+        # Initial refresh
         self.state.events.publish("party_moved", self.state.party.position)
         self.state.events.publish("grid_changed")
 
@@ -71,28 +77,29 @@ class MainWindow:
         self.right.pack(side="left", fill="y")
 
     # ---------------------------------------------------------
-    # Left panel (Toolbar + Biome panel)
+    # Left panel (toolbar + biome picker)
     # ---------------------------------------------------------
     def _build_left_panel(self):
         biome_ids = self.state.biome_lib.ids()
 
+        # biome picker
         self.biome_panel = BiomePanel(self.left, biome_ids)
 
-        # Tools instance map
+        # tool registry
         tools = {
-            "select": SelectTool(),
-            "inspect": InspectTool(),
+            "select":     SelectTool(),
+            "inspect":    InspectTool(),
             "paint_biome": PaintBiomeTool(self.biome_panel.biome_var),
             "paint_trail": PaintTrailTool(),
             "erase_trail": EraseTrailTool(),
         }
         self.state.tools = tools
 
-        # Toolbar now receives state (for undo/redo)
+        # toolbar including undo/redo buttons
         self.toolbar = Toolbar(self.left, tools, self.current_tool_var, self.state)
 
     # ---------------------------------------------------------
-    # Center panel (Grid + Rendering layers)
+    # Center panel (grid & renderer)
     # ---------------------------------------------------------
     def _build_center_panel(self):
         self.grid_widget = HexGridWidget(
@@ -111,26 +118,26 @@ class MainWindow:
         }
         self.grid_widget.set_biome_colors(biome_colors)
 
-        # Bind tool behavior
+        # Bind tool dispatch
         self.grid_widget.set_on_hex_clicked(self._handle_hex_click)
         self.grid_widget.bind("<B1-Motion>", self._handle_hex_drag)
         self.grid_widget.bind("<ButtonRelease-1>", self._handle_hex_release)
 
     # ---------------------------------------------------------
-    # Right panel (Movement UI)
+    # Right panel
     # ---------------------------------------------------------
     def _build_right_panel(self):
         self.movement_panel = MovementPanel(self.right, self.state)
 
     # ---------------------------------------------------------
-    # Menu bar
+    # Menus
     # ---------------------------------------------------------
     def _build_menus(self):
         self.file_menu = FileMenu(self.root, self.state)
         self.edit_menu = EditMenu(self.root, self.state)
 
     # ---------------------------------------------------------
-    # EventBus wiring
+    # EventBus → UI updates
     # ---------------------------------------------------------
     def _wire_events(self):
         ev = self.state.events
@@ -140,7 +147,6 @@ class MainWindow:
         ev.subscribe("map_loaded", self._on_map_loaded)
 
     def _on_grid_changed(self, *_):
-        # Redraw everything (party + tiles + trails + selection layer)
         self.grid_widget.redraw()
 
     def _on_party_moved(self, pos):
@@ -151,10 +157,10 @@ class MainWindow:
         self.grid_widget._compute_canvas_size()
 
     # ---------------------------------------------------------
-    # Keyboard shortcuts for Undo/Redo
+    # Undo/Redo shortcuts
     # ---------------------------------------------------------
     def _bind_shortcuts(self):
-        # Use bind instead of bind_all so shortcuts respect focus
+        # both lowercase and uppercase (Ctrl+Shift+Z)
         self.root.bind("<Control-z>", lambda e: self.state.undo.undo(self.state))
         self.root.bind("<Control-Z>", lambda e: self.state.undo.undo(self.state))
         self.root.bind("<Control-y>", lambda e: self.state.undo.redo(self.state))
@@ -172,9 +178,9 @@ class MainWindow:
         tool.on_click(coord, self.state)
 
     def _handle_hex_drag(self, event):
-        tool = self._get_current_tool()
         coord = self.grid_widget.pixel_to_hex(event.x, event.y)
         if coord in self.state.grid.tiles:
+            tool = self._get_current_tool()
             tool.on_drag(coord, self.state)
 
     def _handle_hex_release(self, event):
