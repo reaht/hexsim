@@ -1,3 +1,4 @@
-name,strength,dex,wisdom,speed
-Arden,14,13,10,30
-Lira,10,16,12,25
+name,speed,con,strength,dex,wis
+Arden,30,10,14,13,10
+Lira,25,12,10,16,12
+Borin,20,14,16,12,11

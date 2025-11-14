@@ -1,0 +1,6 @@
+id,name,speed_mod,description
+reckless,Reckless,-1,Fast movement with increased risk
+normal,Normal,0,Standard travel pace
+cautious,Cautious,1,Reduced speed but stealth and awareness benefits
+exploring,Exploring,2,Slow detailed travel for discovery and safety
+trailblazing,Trailblazing,1,Slow movement that creates a trail behind the party

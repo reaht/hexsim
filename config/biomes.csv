@@ -1,5 +1,9 @@
-id,name,base_cost,danger,description
-plains,Plains,1.0,0.2,Open grassland
-forest,Forest,2.5,0.8,Dense woodland
-mountain,Mountain,3.0,1.2,Steep rocky slopes
-swamp,Swamp,3.0,1.0,Waterlogged and slow
+id,name,base_cost,danger,move_difficulty,color,description
+plains,Plains,1,0.2,0,#d9e86c,Open flat land with clear visibility
+forest,Forest,2,0.8,1,#3a6b32,Dense trees and uneven ground
+mountain,Mountain,3,1.5,2,#8d8c8c,Rocky steep slopes
+swamp,Swamp,3,1.0,1,#4f5b2a,Waterlogged bogs and thick mud
+hills,Hills,2,0.5,1,#9aa85b,Rough terrain with rolling slopes
+desert,Desert,3,1.2,1,#e4d27a,Loose sand and extreme heat
+tundra,Tundra,2,0.6,1,#b8d0e0,Frozen uneven ground
+jungle,Jungle,3,1.4,2,#2f5d28,Very dense vegetation and humidity

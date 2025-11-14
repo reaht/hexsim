@@ -1,5 +1,7 @@
 id,name,cost_mod,color,width,description
-footpath,Footpath,1.0,#8b4513,3,Narrow walking trail
-road,Road,2.0,#d2b48c,5,Well-travelled dirt road
-highway,Highway,3.0,#e8e8e8,7,Major stone or paved road
-secret,Secret Trail,0.5,#556b2f,2,Hidden or camouflaged path
+footpath,Footpath,-1,#a9742a,3,Lightly worn walking path
+forest_path,Forest Path,-1,#7a5f3a,3,Natural track through forest terrain
+road,Road,-2,#8b4513,4,Well-maintained dirt road
+stone_road,Stone Road,-3,#666666,5,Paved stone thoroughfare
+highway,Highway,-4,#444444,5,Major high-quality travel route
+animal_trail,Animal Trail,-0.5,#c2a066,2,Light animal-made path

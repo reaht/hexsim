@@ -17,8 +17,8 @@ Coord = Tuple[int, int]
 
 class HexGridWidget(tk.Canvas):
     """
-    Thin wrapper around Canvas that uses a layered renderer
-    and provides selection + hover highlight behavior.
+    Canvas-based hex grid widget with layered rendering.
+    Biome colors now come directly from BiomeLibrary (CSV).
     """
 
     def __init__(self, master, grid: HexGrid, cell_size=32, **kwargs):
@@ -27,7 +27,6 @@ class HexGridWidget(tk.Canvas):
         self.grid = grid
         self.party_positions: List[Coord] = []
 
-        # callback used by tools
         self.on_hex_clicked: Optional[Callable[[Coord], None]] = None
 
         # ---------------------------------------------------------
@@ -42,12 +41,11 @@ class HexGridWidget(tk.Canvas):
         # ---------------------------------------------------------
         # Layers
         # ---------------------------------------------------------
-        self.tile_layer = TileLayer(self, self.hex_math, biome_colors={})
+        # biome_colors={} is now unused — TileLayer pulls from BiomeLibrary
+        self.tile_layer = TileLayer(self, self.hex_math)
         self.grid_layer = GridlineLayer(self, self.hex_math)
         self.trail_layer = TrailLayer(self, self.hex_math)
         self.party_layer = PartyLayer(self, self.hex_math)
-
-        # NEW selection/highlight layer
         self.selection_layer = SelectionLayer(self, self.hex_math)
 
         self.renderer = LayeredRenderer(
@@ -62,14 +60,15 @@ class HexGridWidget(tk.Canvas):
         )
 
         # ---------------------------------------------------------
-        # Input
+        # Mouse Input
         # ---------------------------------------------------------
         self.bind("<Button-1>", self._click)
         self.bind("<B1-Motion>", self._drag)
-        self.bind("<Motion>", self._hover)          # NEW
-        self.bind("<Leave>", self._leave_hover)     # NEW
+        self.bind("<Motion>", self._hover)
+        self.bind("<Leave>", self._leave_hover)
 
         self._last_drag: Optional[Coord] = None
+
         self._compute_canvas_size()
         self.redraw()
 
@@ -78,7 +77,11 @@ class HexGridWidget(tk.Canvas):
     # ---------------------------------------------------------
 
     def set_biome_colors(self, mapping):
-        self.tile_layer.set_biome_colors(mapping)
+        """
+        Deprecated — kept only for compatibility with old controllers.
+        Biome colors are now read directly from the CSV (BiomeLibrary).
+        """
+        # Do nothing, but allow calls
         self.redraw()
 
     def set_party_positions(self, positions: List[Coord]):
@@ -92,14 +95,13 @@ class HexGridWidget(tk.Canvas):
         return self.hex_math.pixel_to_axial(x, y)
 
     # ---------------------------------------------------------
-    # Mouse handling
+    # Event Handling
     # ---------------------------------------------------------
 
     def _click(self, event):
         coord = self.pixel_to_hex(event.x, event.y)
         self._last_drag = coord
 
-        # Update selection layer
         if coord in self.grid.tiles:
             self.selection_layer.set_selected(coord)
             self.redraw()
@@ -115,8 +117,6 @@ class HexGridWidget(tk.Canvas):
 
         if coord in self.grid.tiles and self.on_hex_clicked:
             self.on_hex_clicked(coord)
-
-        # selection during drag is optional — disabled by default
 
     def _hover(self, event):
         coord = self.pixel_to_hex(event.x, event.y)
@@ -158,7 +158,7 @@ class HexGridWidget(tk.Canvas):
         self.config(width=width, height=height)
 
     # ---------------------------------------------------------
-    # Draw
+    # Rendering
     # ---------------------------------------------------------
 
     def redraw(self):
