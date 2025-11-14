@@ -43,7 +43,12 @@ class ChangeBiomeCommand(Command):
 
 
 class SetTrailCommand(Command):
-    """Set or clear a specific trail direction for a tile."""
+    """
+    Sets or clears a trail on ONE tile and its opposite direction
+    on the neighbor tile. Both sides are handled by grid.set_trail(),
+    so this command just calls through cleanly.
+    """
+
     def __init__(self, coord, direction, old_value, new_value):
         self.coord = coord
         self.direction = direction

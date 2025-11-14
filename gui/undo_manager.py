@@ -2,12 +2,15 @@
 
 from core.command import Command, CompositeCommand
 
-
 class UndoManager:
     """
-    GUI-scoped undo stack.
-    Replaces the old core.undo_stack.UndoStack so that
-    GUI tools and interaction are properly encapsulated.
+    GUI-level undo manager with command transactions.
+    Tools expect:
+        - begin()
+        - add(cmd)
+        - commit(state)
+        - undo(state)
+        - redo(state)
     """
 
     def __init__(self):
@@ -15,25 +18,26 @@ class UndoManager:
         self.future = []
         self.current_transaction = None
 
-    # -------------------------
-    # Transaction support
-    # -------------------------
-
+    # ---------------------------------------------------------
+    # Transactions
+    # ---------------------------------------------------------
     def begin(self):
         if self.current_transaction is None:
             self.current_transaction = []
 
     def add(self, cmd: Command):
+        """Collect a command or execute immediately if not in a transaction."""
         if self.current_transaction is not None:
             self.current_transaction.append(cmd)
         else:
-            # Immediate command application
+            # Immediate do
             self.do(cmd, None)
 
     def commit(self, state):
         if self.current_transaction is None:
             return
 
+        # single or composite
         if len(self.current_transaction) == 1:
             cmd = self.current_transaction[0]
         else:
@@ -43,20 +47,18 @@ class UndoManager:
         self.do(cmd, state)
 
     def rollback(self):
+        """Drop changes made during drag before commit."""
         self.current_transaction = None
 
-    # -------------------------
-    # Core undo/redo logic
-    # -------------------------
-
+    # ---------------------------------------------------------
+    # Core undo/redo
+    # ---------------------------------------------------------
     def do(self, cmd, state):
-        """Execute a command and push onto undo history."""
         cmd.do(state)
         self.past.append(cmd)
         self.future.clear()
 
-        # GUI redraw
-        if state is not None:
+        if state:
             state.events.publish("grid_changed")
 
     def undo(self, state):
@@ -67,7 +69,6 @@ class UndoManager:
         cmd.undo(state)
         self.future.append(cmd)
 
-        # GUI redraw
         state.events.publish("grid_changed")
 
     def redo(self, state):
@@ -78,7 +79,6 @@ class UndoManager:
         cmd.do(state)
         self.past.append(cmd)
 
-        # GUI redraw
         state.events.publish("grid_changed")
 
     def clear(self):

@@ -1,9 +1,10 @@
 # file: gui/app_state.py
 
 from dataclasses import dataclass, field
+import tkinter as tk
 
 from core.event_bus import EventBus
-from gui.undo_manager import UndoManager   # CHANGED — now uses GUI version
+from gui.undo_manager import UndoManager   # your GUI-undo class
 
 
 @dataclass
@@ -13,6 +14,16 @@ class AppState:
     party: any
     engine: any
 
+    # Tools will be injected by LeftPanelController
     tools: dict = field(default_factory=dict)
+
+    # Global event bus
     events: EventBus = field(default_factory=EventBus)
-    undo: UndoManager = field(default_factory=UndoManager)   # CHANGED
+
+    # Undo/redo manager
+    undo: UndoManager = field(default_factory=UndoManager)
+
+    # 🔥 Add this: a globally shared selected tool variable
+    current_tool_var: tk.StringVar = field(
+        default_factory=lambda: tk.StringVar(value="select")
+    )
