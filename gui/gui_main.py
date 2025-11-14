@@ -10,37 +10,33 @@ from simulation.engine import SimulationEngine
 from gui.app_state import AppState
 from gui.main_window import MainWindow
 
+from core.trail_type import TrailLibrary
 
 def run_app():
     root = tk.Tk()
     root.title("Hexcrawl Simulator")
 
-    # ---------------------------------------------------------
-    # Load biome definitions
-    # ---------------------------------------------------------
+    # --- Load biomes ---
     biome_lib = BiomeLibrary()
     biome_lib.load_from_csv("config/biomes.csv")
 
-    # ---------------------------------------------------------
-    # Create base grid
-    # ---------------------------------------------------------
+    # --- Load trails ---
+    trail_lib = TrailLibrary()
+    trail_lib.load_from_csv("config/trails.csv")
+
+    # --- Create grid ---
     grid = HexGrid()
     grid.biome_lib = biome_lib
+    grid.trail_lib = trail_lib     # ✅ now safe — grid exists
     grid.generate_rectangle(15, 15, default_biome="plains")
 
-    # ---------------------------------------------------------
-    # Load party
-    # ---------------------------------------------------------
+    # --- Party ---
     party = load_party_from_csv("config/party.csv", leader_index=0, start_pos=(0, 0))
 
-    # ---------------------------------------------------------
-    # Simulation Engine
-    # ---------------------------------------------------------
+    # --- Engine ---
     engine = SimulationEngine(grid, party)
 
-    # ---------------------------------------------------------
-    # Global App State
-    # ---------------------------------------------------------
+    # --- App state ---
     state = AppState(
         grid=grid,
         biome_lib=biome_lib,
@@ -48,12 +44,5 @@ def run_app():
         engine=engine,
     )
 
-    # ---------------------------------------------------------
-    # Launch Main Window
-    # ---------------------------------------------------------
     MainWindow(root, state)
-
-    # ---------------------------------------------------------
-    # Enter main loop
-    # ---------------------------------------------------------
     root.mainloop()

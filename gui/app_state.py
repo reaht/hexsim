@@ -27,3 +27,7 @@ class AppState:
     current_tool_var: tk.StringVar = field(
         default_factory=lambda: tk.StringVar(value="select")
     )
+
+    current_trail_var: tk.StringVar = field(
+        default_factory=lambda: tk.StringVar(value="footpath")
+    )

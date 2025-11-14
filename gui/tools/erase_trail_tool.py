@@ -1,14 +1,9 @@
 # file: gui/tools/erase_trail_tool.py
-
 from core.movement import AXIAL_DIRECTIONS
 from core.command import SetTrailCommand
 
-class EraseTrailTool:
-    """
-    Drag to remove trails. Identical behaviour to PaintTrailTool,
-    except it sets trail=False instead of True.
-    """
 
+class EraseTrailTool:
     def __init__(self):
         self.last = None
 
@@ -23,20 +18,24 @@ class EraseTrailTool:
         dq = coord[0] - self.last[0]
         dr = coord[1] - self.last[1]
 
-        direction = self._closest_direction(dq, dr)
+        direction = None
+        for i, (aq, ar) in enumerate(AXIAL_DIRECTIONS):
+            if (aq, ar) == (dq, dr):
+                direction = i
+                break
         if direction is None:
             self.last = coord
             return
 
         tile = state.grid.get(self.last)
         old = tile.trails[direction]
+        new = "none"
 
-        # Already erased → nothing to do
-        if old is False:
+        if old == new:
             self.last = coord
             return
 
-        cmd = SetTrailCommand(self.last, direction, old, False)
+        cmd = SetTrailCommand(self.last, direction, old, new)
         state.undo.add(cmd)
 
         self.last = coord
@@ -44,18 +43,3 @@ class EraseTrailTool:
     def on_release(self, state):
         state.undo.commit(state)
         self.last = None
-
-    # ---------------------------------------------------------
-    # Helpers
-    # ---------------------------------------------------------
-    def _closest_direction(self, dq, dr):
-        best = 999999
-        best_dir = None
-
-        for i, (aq, ar) in enumerate(AXIAL_DIRECTIONS):
-            dist = abs(dq - aq) + abs(dr - ar)
-            if dist < best:
-                best = dist
-                best_dir = i
-
-        return best_dir if best <= 1 else None

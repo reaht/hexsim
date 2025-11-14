@@ -15,7 +15,7 @@ class HexTile:
     def __post_init__(self):
         if self.trails is None:
             # 0=N, 1=NE, 2=SE, 3=S, 4=SW, 5=NW
-            self.trails = [False] * 6
+            self.trails = ["none"] * 6
         if self.data is None:
             self.data = {}
 
@@ -30,6 +30,7 @@ class HexGrid:
     def __init__(self):
         self.tiles: Dict[Coord, HexTile] = {}
         self.biome_lib = None  # set externally
+        self.trail_lib = None
 
     # ---------------------------------------------------------
     # Tile access
@@ -76,11 +77,7 @@ class HexGrid:
         """
         return (direction_index + 3) % 6
 
-    def set_trail(self, coord: Coord, direction_index: int, value: bool):
-        """
-        Set a trail on this hex in a given direction and mirror it
-        on the neighboring hex in the opposite direction (if it exists).
-        """
+    def set_trail(self, coord, direction_index: int, value: str):
         tile = self.tiles.get(coord)
         if tile is None:
             return
@@ -88,8 +85,7 @@ class HexGrid:
         # Set on this tile
         tile.trails[direction_index] = value
 
-        # Neighbor coordinate (same axial directions used in movement)
-        # NOTE: keep this in sync with AXIAL_DIRECTIONS in movement.py
+        # Mirror to neighbor
         from core.movement import AXIAL_DIRECTIONS, add
 
         dq, dr = AXIAL_DIRECTIONS[direction_index]
@@ -125,7 +121,7 @@ class HexGrid:
             q, r = item["q"], item["r"]
             biome = item.get("biome", "plains")
             elevation = item.get("elevation", 0)
-            trails = item.get("trails", [False] * 6)
+            trails = item.get("trails", ["none"] * 6)
             extra = item.get("data", {})
             g.tiles[(q, r)] = HexTile(
                 biome_id=biome,
