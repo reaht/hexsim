@@ -18,7 +18,6 @@ class PaintTrailTool:
         state.undo.begin()
 
     def on_drag(self, coord, state):
-        print("drag:", coord, "last:", self.last)
         if self.last is None or coord == self.last:
             return
 
