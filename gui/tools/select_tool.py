@@ -1,20 +1,20 @@
 # file: gui/tools/select_tool.py
-from typing import Tuple
-from tkinter import messagebox
 
-from gui.tools.base_tool import BaseTool
-from gui.app_state import AppState
+from core.command import MovePartyCommand
 
-Coord = Tuple[int, int]
+class SelectTool:
+    def on_click(self, coord, state):
+        old = state.party.position
+        new = coord
 
-
-class SelectTool(BaseTool):
-    name = "select"
-
-    def on_click(self, coord: Coord, state: AppState):
-        # Move party to clicked hex
-        if coord not in state.grid.tiles:
+        if old == new:
             return
-        state.party.position = coord
-        state.events.publish("party_moved", coord)
-        state.events.publish("grid_changed")
+
+        cmd = MovePartyCommand(old, new)
+        state.undo.do(cmd, state)
+
+    def on_drag(self, coord, state):
+        pass
+
+    def on_release(self, state):
+        pass

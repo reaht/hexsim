@@ -1,55 +1,44 @@
-# file: gui/tools/paint_trail_tool.py
-from typing import Tuple, Optional
+# file: gui/tools/pain_trail_tool.py
 
-from gui.tools.base_tool import BaseTool
-from gui.app_state import AppState
 from core.movement import AXIAL_DIRECTIONS
+from core.command import SetTrailCommand
 
-Coord = Tuple[int, int]
-
-
-class PaintTrailTool(BaseTool):
-    name = "paint_trail"
-
+class PaintTrailTool:
     def __init__(self):
-        self.last_coord: Optional[Coord] = None
+        self.last = None
 
-    def on_click(self, coord: Coord, state: AppState):
-        # Start of a stroke: remember starting hex, no trail yet
-        if coord not in state.grid.tiles:
-            return
-        self.last_coord = coord
+    def on_click(self, coord, state):
+        self.last = coord
+        state.undo.begin()
 
-    def on_drag(self, coord: Coord, state: AppState):
-        if coord not in state.grid.tiles:
+    def on_drag(self, coord, state):
+        if self.last is None or coord == self.last:
             return
 
-        if self.last_coord is None:
-            self.last_coord = coord
-            return
+        dq = coord[0] - self.last[0]
+        dr = coord[1] - self.last[1]
 
-        if coord == self.last_coord:
-            return
-
-        dq = coord[0] - self.last_coord[0]
-        dr = coord[1] - self.last_coord[1]
-
-        dir_idx = None
-        for i, (adq, adr) in enumerate(AXIAL_DIRECTIONS):
-            if (adq, adr) == (dq, dr):
-                dir_idx = i
+        # Must be a valid neighbor direction
+        direction = None
+        for i, (aq, ar) in enumerate(AXIAL_DIRECTIONS):
+            if (aq, ar) == (dq, dr):
+                direction = i
                 break
 
-        if dir_idx is None:
-            # non-adjacent; reset stroke
-            self.last_coord = coord
+        if direction is None:
+            self.last = coord
             return
 
-        # Bidirectional trail
-        state.grid.set_trail(self.last_coord, dir_idx, True)
+        old = state.grid.get(self.last).trails[direction]
+        if old is True:
+            self.last = coord
+            return
 
-        self.last_coord = coord
-        state.events.publish("grid_changed")
+        cmd = SetTrailCommand(self.last, direction, old, True)
+        state.undo.add(cmd)
 
-    def on_release(self, state: AppState):
-        self.last_coord = None
+        self.last = coord
+
+    def on_release(self, state):
+        state.undo.commit(state)
+        self.last = None

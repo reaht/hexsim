@@ -9,25 +9,34 @@ from core.grid import HexGrid
 
 class FileMenu:
     """
-    Adds File menu with save/load map actions.
+    Creates/owns the File menu (Save Map / Load Map).
+
+    Also ensures there is a menubar on the root window that EditMenu can
+    attach to.
     """
 
     def __init__(self, root: tk.Tk, state: AppState):
         self.root = root
         self.state = state
 
-        self._build_menu()
+        # Get or create the menubar
+        menubar = root.nametowidget(root.cget("menu")) if root.cget("menu") else None
+        if menubar is None:
+            menubar = tk.Menu(root)
+            root.config(menu=menubar)
 
-    def _build_menu(self):
-        menubar = tk.Menu(self.root)
-        self.root.config(menu=menubar)
+        self.menubar = menubar
 
-        filemenu = tk.Menu(menubar, tearoff=False)
-        menubar.add_cascade(label="File", menu=filemenu)
+        # Build File menu
+        self.filemenu = tk.Menu(self.menubar, tearoff=False)
+        self.menubar.add_cascade(label="File", menu=self.filemenu)
 
-        filemenu.add_command(label="Save Map", command=self.save_map)
-        filemenu.add_command(label="Load Map", command=self.load_map)
+        self.filemenu.add_command(label="Save Map", command=self.save_map)
+        self.filemenu.add_command(label="Load Map", command=self.load_map)
 
+    # ---------------------------------------------------------
+    # Actions
+    # ---------------------------------------------------------
     def save_map(self):
         path = filedialog.asksaveasfilename(
             defaultextension=".json",
@@ -54,11 +63,56 @@ class FileMenu:
         new_grid = HexGrid.from_dict(data)
         new_grid.biome_lib = self.state.biome_lib
 
+        # Swap grids in state and engine
         self.state.grid = new_grid
         self.state.engine.grid = new_grid
+
+        # Clear undo/redo history on load (as requested)
+        self.state.undo.clear()
 
         # Notify the rest of the system
         self.state.events.publish("map_loaded")
         self.state.events.publish("grid_changed")
 
         messagebox.showinfo("Loaded", "Map loaded.")
+
+
+class EditMenu:
+    """
+    Edit menu: Undo / Redo items.
+
+    Note: keyboard shortcuts are bound in MainWindow; this just exposes
+    menu entries that call the same undo/redo actions.
+    """
+
+    def __init__(self, root: tk.Tk, state: AppState):
+        self.root = root
+        self.state = state
+
+        # Reuse existing menubar created by FileMenu
+        menubar = root.nametowidget(root.cget("menu")) if root.cget("menu") else None
+        if menubar is None:
+            menubar = tk.Menu(root)
+            root.config(menu=menubar)
+
+        self.menubar = menubar
+
+        self.editmenu = tk.Menu(self.menubar, tearoff=False)
+        self.menubar.add_cascade(label="Edit", menu=self.editmenu)
+
+        self.editmenu.add_command(
+            label="Undo",
+            accelerator="Ctrl+Z",
+            command=self._do_undo,
+        )
+        self.editmenu.add_command(
+            label="Redo",
+            accelerator="Ctrl+Y",
+            command=self._do_redo,
+        )
+
+    def _do_undo(self):
+        self.state.undo.undo(self.state)
+
+    def _do_redo(self):
+        self.state.undo.redo(self.state)

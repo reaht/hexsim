@@ -1,27 +1,27 @@
-# file: gui/tools/pain t_biome_tool.py
-from typing import Tuple
-import tkinter as tk
+# file: gui/tools/paint_biome_tool.py
 
-from gui.tools.base_tool import BaseTool
-from gui.app_state import AppState
+from core.command import ChangeBiomeCommand
 
-Coord = Tuple[int, int]
-
-
-class PaintBiomeTool(BaseTool):
-    name = "paint_biome"
-
-    def __init__(self, biome_var: tk.StringVar):
+class PaintBiomeTool:
+    def __init__(self, biome_var):
         self.biome_var = biome_var
 
-    def on_click(self, coord: Coord, state: AppState):
-        if coord not in state.grid.tiles:
+    def on_click(self, coord, state):
+        old = state.grid.get(coord).biome_id
+        new = self.biome_var.get()
+
+        cmd = ChangeBiomeCommand(coord, old, new)
+        state.undo.do(cmd, state)
+
+    def on_drag(self, coord, state):
+        old = state.grid.get(coord).biome_id
+        new = self.biome_var.get()
+
+        if old == new:
             return
 
-        biome_id = self.biome_var.get()
-        state.grid.set_biome(coord, biome_id)
-        state.events.publish("grid_changed")
+        cmd = ChangeBiomeCommand(coord, old, new)
+        state.undo.do(cmd, state)
 
-    def on_drag(self, coord: Coord, state: AppState):
-        # allow drag painting
-        self.on_click(coord, state)
+    def on_release(self, state):
+        pass
