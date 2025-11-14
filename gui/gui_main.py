@@ -7,18 +7,15 @@ from core.biome import BiomeLibrary
 from core.grid import HexGrid
 from core.party import load_party_from_csv
 from simulation.engine import SimulationEngine
+
 from gui.grid_widget import HexGridWidget
-from core.movement import AXIAL_DIRECTIONS  # NEW: to compute direction between hexes
 
-
-# ---------------------------------------------------------
-# Tool identifiers (like Photoshop tools)
-# ---------------------------------------------------------
-TOOL_SELECT = "select"
-TOOL_PAINT_BIOME = "paint_biome"
-TOOL_PAINT_TRAIL = "paint_trail"
-TOOL_ERASE_TRAIL = "erase_trail"
-TOOL_INSPECT = "inspect"
+# Tool classes
+from gui.tools.select_tool import SelectTool
+from gui.tools.inspect_tool import InspectTool
+from gui.tools.paint_biome_tool import PaintBiomeTool
+from gui.tools.paint_trail_tool import PaintTrailTool
+from gui.tools.erase_trail_tool import EraseTrailTool
 
 
 def run_app():
@@ -48,9 +45,6 @@ def run_app():
     # ---------------------------------------------------------
     engine = SimulationEngine(grid, party)
 
-    # Track last coord for auto-direction trail brush
-    trail_last_coord: list[tuple[int, int] | None] = [None]
-
     # ---------------------------------------------------------
     # Layout frames
     # ---------------------------------------------------------
@@ -71,36 +65,48 @@ def run_app():
     # ---------------------------------------------------------
     ttk.Label(left, text="Tools", font=("Arial", 11, "bold")).pack(pady=4)
 
-    current_tool = tk.StringVar(value=TOOL_SELECT)
+    # biome selection variable must exist *before* constructing PaintBiomeTool
+    biome_ids = biome_lib.ids()
+    biome_var = tk.StringVar(value=biome_ids[0])
+
+    # ---------------------------------------------------------
+    # Instantiate tools
+    # ---------------------------------------------------------
+    tools = {
+        "select": SelectTool(),
+        "inspect": InspectTool(),
+        "paint_biome": PaintBiomeTool(biome_var),
+        "paint_trail": PaintTrailTool(),
+        "erase_trail": EraseTrailTool(),
+    }
+
+    current_tool_name = tk.StringVar(value="select")
+
+    def set_tool(t):
+        current_tool_name.set(t)
 
     def make_tool_button(text, tool_id):
-        btn = ttk.Button(left, text=text, width=20,
-                         command=lambda: current_tool.set(tool_id))
+        btn = ttk.Button(left, text=text, width=20, command=lambda: set_tool(tool_id))
         btn.pack(pady=2)
         return btn
 
-    btn_select = make_tool_button("Select", TOOL_SELECT)
-    btn_biome = make_tool_button("Paint Biome", TOOL_PAINT_BIOME)
-    btn_trail = make_tool_button("Paint Trail", TOOL_PAINT_TRAIL)
-    btn_erase = make_tool_button("Erase Trail", TOOL_ERASE_TRAIL)
-    btn_inspect = make_tool_button("Inspect", TOOL_INSPECT)
+    make_tool_button("Select", "select")
+    make_tool_button("Paint Biome", "paint_biome")
+    make_tool_button("Paint Trail", "paint_trail")
+    make_tool_button("Erase Trail", "erase_trail")
+    make_tool_button("Inspect", "inspect")
 
     # ---------------------------------------------------------
-    # Subpanel: Biome selection (only used by paint_biome tool)
+    # Biome selection panel
     # ---------------------------------------------------------
     ttk.Label(left, text="Biome", font=("Arial", 10, "bold")).pack(pady=5)
-
-    biome_ids = biome_lib.ids()
-    biome_var = tk.StringVar(value=biome_ids[0])
 
     biome_box = ttk.Combobox(left, textvariable=biome_var,
                              values=biome_ids, state="readonly")
     biome_box.pack(pady=4)
 
-    # (Trail direction dropdown removed – we now auto-detect direction while dragging)
-
     # ---------------------------------------------------------
-    # Grid display
+    # Grid widget
     # ---------------------------------------------------------
     grid_widget = HexGridWidget(center, grid, cell_size=32, bg="white")
     grid_widget.pack(fill="both", expand=True)
@@ -115,78 +121,33 @@ def run_app():
     grid_widget.set_party_positions([party.position])
 
     # ---------------------------------------------------------
-    # On-click behavior (all tools funnel through here)
+    # Connect grid widget -> tools
     # ---------------------------------------------------------
-    def on_hex_clicked(coord):
-        tile = grid.get(coord)
-        tool = current_tool.get()
 
-        # If we're not in trail-paint tool, reset the brush start
-        if tool != TOOL_PAINT_TRAIL:
-            trail_last_coord[0] = None
+    def handle_click(coord):
+        tool = tools[current_tool_name.get()]
+        tool.on_click(coord, grid, grid_widget)
 
-        if tool == TOOL_PAINT_BIOME:
-            grid.set_biome(coord, biome_var.get())
-            grid_widget.redraw()
-            return
+    def handle_drag(event):
+        tool = tools[current_tool_name.get()]
+        coord = grid_widget.pixel_to_hex(event.x, event.y)
+        if coord in grid.tiles:
+            tool.on_drag(coord, grid, grid_widget)
 
-        if tool == TOOL_PAINT_TRAIL:
-            prev = trail_last_coord[0]
+    def handle_release(event):
+        tool = tools[current_tool_name.get()]
+        tool.on_release(grid, grid_widget)
 
-            # First hex in a stroke: just remember and wait for drag
-            if prev is None:
-                trail_last_coord[0] = coord
-                return
-
-            # Same hex → nothing to do
-            if prev == coord:
-                return
-
-            dq = coord[0] - prev[0]
-            dr = coord[1] - prev[1]
-
-            # Find which of the 6 directions this movement is
-            dir_idx = None
-            for i, (adq, adr) in enumerate(AXIAL_DIRECTIONS):
-                if (adq, adr) == (dq, dr):
-                    dir_idx = i
-                    break
-
-            if dir_idx is None:
-                # Not adjacent — treat this as a new starting point
-                trail_last_coord[0] = coord
-                return
-
-            # Set bidirectional trail from prev to coord
-            grid.set_trail(prev, dir_idx, True)
-            trail_last_coord[0] = coord
-            grid_widget.redraw()
-            return
-
-        if tool == TOOL_ERASE_TRAIL:
-            for i in range(6):
-                grid.set_trail(coord, i, False)
-            grid_widget.redraw()
-            return
-
-        if tool == TOOL_INSPECT:
-            messagebox.showinfo(
-                "Hex Info",
-                f"Coord: {coord}\nBiome: {tile.biome_id}\nTrails: {tile.trails}"
-            )
-            return
-
-        # TOOL_SELECT (or default) → move party
-        party.position = coord
-        grid_widget.set_party_positions([party.position])
-        grid_widget.redraw()
-
-    grid_widget.set_on_hex_clicked(on_hex_clicked)
+    grid_widget.set_on_hex_clicked(handle_click)
+    grid_widget.bind("<B1-Motion>", handle_drag)
+    grid_widget.bind("<ButtonRelease-1>", handle_release)
 
     # ---------------------------------------------------------
     # Movement UI
     # ---------------------------------------------------------
     ttk.Label(right, text="Movement").pack(pady=5)
+
+    speed_var = tk.StringVar(value="normal")
 
     def do_move(idx):
         mode = speed_var.get()
@@ -198,15 +159,20 @@ def run_app():
     mvf = ttk.Frame(right)
     mvf.pack(pady=10)
 
-    ttk.Button(mvf, text="N", command=lambda: do_move(0)).grid(row=0, column=1)
-    ttk.Button(mvf, text="NW", command=lambda: do_move(5)).grid(row=1, column=0)
-    ttk.Button(mvf, text="NE", command=lambda: do_move(1)).grid(row=1, column=2)
-    ttk.Button(mvf, text="SW", command=lambda: do_move(4)).grid(row=2, column=0)
-    ttk.Button(mvf, text="SE", command=lambda: do_move(2)).grid(row=2, column=2)
-    ttk.Button(mvf, text="S", command=lambda: do_move(3)).grid(row=3, column=1)
+    # Movement hex directions
+    buttons = [
+        ("N", 0, 0, 1),
+        ("NW", 5, 1, 0),
+        ("NE", 1, 1, 2),
+        ("SW", 4, 2, 0),
+        ("SE", 2, 2, 2),
+        ("S", 3, 3, 1),
+    ]
+
+    for label, idx, row, col in buttons:
+        ttk.Button(mvf, text=label, command=lambda i=idx: do_move(i)).grid(row=row, column=col)
 
     ttk.Label(right, text="Speed Mode").pack(pady=5)
-    speed_var = tk.StringVar(value="normal")
     ttk.Combobox(right, textvariable=speed_var,
                  values=["cautious", "normal", "fast"], state="readonly").pack(pady=4)
 
@@ -227,21 +193,27 @@ def run_app():
                                             filetypes=[("JSON", "*.json")])
         if not path:
             return
+
         with open(path, "w") as f:
             json.dump(grid.to_dict(), f, indent=2)
+
         messagebox.showinfo("Saved", "Map saved.")
 
     def load_map():
         path = filedialog.askopenfilename(filetypes=[("JSON", "*.json")])
         if not path:
             return
+
         with open(path) as f:
             data = json.load(f)
+
         new_grid = HexGrid.from_dict(data)
         new_grid.biome_lib = biome_lib
+
         engine.grid = new_grid
         grid_widget.grid = new_grid
         grid_widget.redraw()
+
         messagebox.showinfo("Loaded", "Map loaded.")
 
     filemenu.add_command(label="Save Map", command=save_map)
